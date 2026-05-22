@@ -120,7 +120,7 @@ function AffRow({ aff, paid, selected, onClick }) {
           <Pill status={status} />
           <span className="serif" style={{ fontSize: 24 }}>{aff.name}</span>
           <span style={{ fontSize: 12, color: 'var(--muted)' }}>
-            · {aff.events.length} event{aff.events.length !== 1 ? 's' : ''} · {aff.teams.length} team{aff.teams.length !== 1 ? 's' : ''}
+            {aff.events.length > 0 ? `· ${aff.events.length} event${aff.events.length !== 1 ? 's' : ''} · ${aff.teams.length} team${aff.teams.length !== 1 ? 's' : ''}` : '· Prior invoice'}
           </span>
         </div>
         <div style={{ height: 4, background: 'rgba(11,31,58,0.08)', borderRadius: 2, overflow: 'hidden', maxWidth: 420 }}>
@@ -272,6 +272,11 @@ function Detail({ aff, paidMap, log, onClose, onRefresh }) {
       <div style={{ fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 14 }}>
         Event Breakdown · Streamlined View
       </div>
+      {aff.events.length === 0 && (
+        <div style={{ padding: 20, textAlign: 'center', color: 'var(--muted)', fontStyle: 'italic', border: '1px dashed var(--line)', marginBottom: 18 }}>
+          Prior invoice balance — no event detail available.
+        </div>
+      )}
       {Object.entries(byTeam).map(([team, evs]) => {
         const teamSum = evs.reduce((s, e) => s + e.final, 0)
         return (
