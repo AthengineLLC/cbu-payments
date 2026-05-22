@@ -34,3 +34,20 @@ input[type=number] { -moz-appearance: textfield; }
   letter-spacing: -0.02em;
 }
 .serif { font-family: 'DM Serif Display', serif; }
+
+/* ── Mobile overrides ── */
+@media (max-width: 640px) {
+  .stats-3 { grid-template-columns: 1fr !important; }
+  .stats-3 > * { border-right: none !important; border-bottom: 1px solid var(--line); }
+  .stats-3 > *:last-child { border-bottom: none; }
+  .stats-4 { grid-template-columns: 1fr 1fr !important; }
+  .stats-4 > *:nth-child(2n) { border-right: none !important; }
+  .stats-4 > *:nth-child(n+3) { border-top: 1px solid var(--line); }
+  .pay-grid { grid-template-columns: 1fr 1fr !important; }
+  .pay-grid .pay-note  { grid-column: 1 / -1; }
+  .pay-grid .pay-rec   { grid-column: 1 / 2; }
+  .pay-grid .pay-full  { grid-column: 2 / 3; }
+  .log-row-inner { grid-template-columns: 1fr auto !important; }
+  .log-ts { display: none; }
+  .profit-row { grid-template-columns: 100px 1fr 90px 90px 90px 80px !important; font-size: 11px !important; }
+}
