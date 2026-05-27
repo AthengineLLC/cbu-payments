@@ -9,25 +9,25 @@ const PG_PROFIT = [{"name":"Jacksonville","invoice":"Perfect Game","events":[{"t
 
 // ── Prospect Select profit data ───────────────────────────────────────────────
 const PS_PROFIT = [
-  {"name":"CBU","invoice":"Prospect Select","noDiscount":true,"events":[
-    {"team":"CBU 2027 Scout Olasin","eventName":"Florida Invite","startDate":"2026-05-29","endDate":"2026-06-01","affPays":2500,"psCost":650,"profit":1850},
-    {"team":"CBU 2029 Scout Team Pascual","eventName":"Florida Invite","startDate":"2026-05-29","endDate":"2026-06-01","affPays":2500,"psCost":650,"profit":1850},
-    {"team":"CBU 2028 Scout Team DiBenedetto","eventName":"Florida Invite","startDate":"2026-05-29","endDate":"2026-06-01","affPays":2500,"psCost":650,"profit":1850},
-    {"team":"CBU 2027 United Thomas","eventName":"Palm Beach Classic","startDate":"2026-06-05","endDate":"2026-06-10","affPays":2100,"psCost":650,"profit":1450},
-    {"team":"CBU 2027 Scout Team McCoy","eventName":"Palm Beach Classic","startDate":"2026-06-05","endDate":"2026-06-10","affPays":2100,"psCost":650,"profit":1450},
-    {"team":"CBU 2027 Scout Team Menendez","eventName":"Palm Beach Classic","startDate":"2026-06-05","endDate":"2026-06-10","affPays":2100,"psCost":650,"profit":1450},
-    {"team":"CBU 2029 Scout Team Wisser","eventName":"Palm Beach Classic","startDate":"2026-06-05","endDate":"2026-06-10","affPays":2100,"psCost":650,"profit":1450},
-    {"team":"CBU 2029 United Cates","eventName":"Palm Beach Classic","startDate":"2026-06-05","endDate":"2026-06-10","affPays":2100,"psCost":650,"profit":1450},
-    {"team":"CBU 2028 United Severidt","eventName":"Palm Beach Classic","startDate":"2026-06-05","endDate":"2026-06-10","affPays":2100,"psCost":650,"profit":1450},
-    {"team":"CBU 2028 United Merrell","eventName":"Palm Beach Classic","startDate":"2026-06-05","endDate":"2026-06-10","affPays":2100,"psCost":650,"profit":1450},
-    {"team":"CBU 2030 United Navy","eventName":"Palm Beach Classic Futures","startDate":"2026-06-11","endDate":"2026-06-14","affPays":995,"psCost":995,"profit":0},
-    {"team":"CBU 2030 United Red","eventName":"Palm Beach Classic Futures","startDate":"2026-06-11","endDate":"2026-06-14","affPays":995,"psCost":995,"profit":0},
-    {"team":"CBU 2030 United Santiago","eventName":"Palm Beach Classic Futures","startDate":"2026-06-11","endDate":"2026-06-14","affPays":995,"psCost":995,"profit":0},
-    {"team":"CBU 2027 Scout Team McCoy","eventName":"Black Bear Classic","startDate":"2026-06-17","endDate":"2026-06-21","affPays":2100,"psCost":650,"profit":1450},
-    {"team":"CBU 2027 Scout Team Menendez","eventName":"Black Bear Classic","startDate":"2026-06-17","endDate":"2026-06-21","affPays":2100,"psCost":650,"profit":1450},
-    {"team":"CBU 2027 United Thomas","eventName":"Black Bear Classic","startDate":"2026-06-17","endDate":"2026-06-21","affPays":2100,"psCost":650,"profit":1450},
-    {"team":"CBU 2027 Scout Team Menendez","eventName":"Boston Classic","startDate":"2026-07-06","endDate":"2026-07-11","affPays":2695,"psCost":650,"profit":2045},
-  ],"totalAffPays":34180,"totalPsCost":12085,"totalProfit":22095},
+  {"name":"CBU","invoice":"Prospect Select","noDiscount":false,"events":[
+    {"team":"CBU 2027 Scout Olasin","eventName":"Florida Invite","startDate":"2026-05-29","endDate":"2026-06-01","affPays":2375,"psCost":650,"profit":1725},
+    {"team":"CBU 2029 Scout Team Pascual","eventName":"Florida Invite","startDate":"2026-05-29","endDate":"2026-06-01","affPays":2375,"psCost":650,"profit":1725},
+    {"team":"CBU 2028 Scout Team DiBenedetto","eventName":"Florida Invite","startDate":"2026-05-29","endDate":"2026-06-01","affPays":2375,"psCost":650,"profit":1725},
+    {"team":"CBU 2027 United Thomas","eventName":"Palm Beach Classic","startDate":"2026-06-05","endDate":"2026-06-10","affPays":1995,"psCost":650,"profit":1345},
+    {"team":"CBU 2027 Scout Team McCoy","eventName":"Palm Beach Classic","startDate":"2026-06-05","endDate":"2026-06-10","affPays":1995,"psCost":650,"profit":1345},
+    {"team":"CBU 2027 Scout Team Menendez","eventName":"Palm Beach Classic","startDate":"2026-06-05","endDate":"2026-06-10","affPays":1995,"psCost":650,"profit":1345},
+    {"team":"CBU 2029 Scout Team Wisser","eventName":"Palm Beach Classic","startDate":"2026-06-05","endDate":"2026-06-10","affPays":1995,"psCost":650,"profit":1345},
+    {"team":"CBU 2029 United Cates","eventName":"Palm Beach Classic","startDate":"2026-06-05","endDate":"2026-06-10","affPays":1995,"psCost":650,"profit":1345},
+    {"team":"CBU 2028 United Severidt","eventName":"Palm Beach Classic","startDate":"2026-06-05","endDate":"2026-06-10","affPays":1995,"psCost":650,"profit":1345},
+    {"team":"CBU 2028 United Merrell","eventName":"Palm Beach Classic","startDate":"2026-06-05","endDate":"2026-06-10","affPays":1995,"psCost":650,"profit":1345},
+    {"team":"CBU 2030 United Navy","eventName":"Palm Beach Classic Futures","startDate":"2026-06-11","endDate":"2026-06-14","affPays":945.25,"psCost":995,"profit":-49.75},
+    {"team":"CBU 2030 United Red","eventName":"Palm Beach Classic Futures","startDate":"2026-06-11","endDate":"2026-06-14","affPays":945.25,"psCost":995,"profit":-49.75},
+    {"team":"CBU 2030 United Santiago","eventName":"Palm Beach Classic Futures","startDate":"2026-06-11","endDate":"2026-06-14","affPays":945.25,"psCost":995,"profit":-49.75},
+    {"team":"CBU 2027 Scout Team McCoy","eventName":"Black Bear Classic","startDate":"2026-06-17","endDate":"2026-06-21","affPays":1995,"psCost":650,"profit":1345},
+    {"team":"CBU 2027 Scout Team Menendez","eventName":"Black Bear Classic","startDate":"2026-06-17","endDate":"2026-06-21","affPays":1995,"psCost":650,"profit":1345},
+    {"team":"CBU 2027 United Thomas","eventName":"Black Bear Classic","startDate":"2026-06-17","endDate":"2026-06-21","affPays":1995,"psCost":650,"profit":1345},
+    {"team":"CBU 2027 Scout Team Menendez","eventName":"Boston Classic","startDate":"2026-07-06","endDate":"2026-07-11","affPays":2560.25,"psCost":650,"profit":1910.25},
+  ],"totalAffPays":32471.0,"totalPsCost":12085,"totalProfit":20386.0},
   {"name":"Jacksonville","invoice":"Prospect Select","events":[
     {"team":"CBU United Fleming 17U","eventName":"Palm Beach Classic","startDate":"2026-06-05","endDate":"2026-06-10","affPays":1995,"psCost":650,"profit":1345},
     {"team":"CBU United Murphy - 15U","eventName":"Palm Beach Classic","startDate":"2026-06-05","endDate":"2026-06-10","affPays":1995,"psCost":650,"profit":1345},
@@ -97,7 +97,7 @@ function PublicView({ payments }) {
   }, [payments])
 
   const grandTotal   = AFFILIATES.reduce((s, a) => s + a.finalTotal, 0)
-  const grandSavings = AFFILIATES.filter(a => !a.noDiscount && a.events.length > 0)
+  const grandSavings = AFFILIATES.filter(a => a.events.length > 0)
     .reduce((s, a) => s + a.events.reduce((es, e) => es + (e.gross - e.final), 0), 0)
 
   return (
@@ -119,8 +119,8 @@ function PublicView({ payments }) {
           const isOpen = expanded === aff.name
           const paid = paidMap[aff.name] || 0
           const balance = +(aff.finalTotal - paid).toFixed(2)
-          const noDiscount = !!aff.noDiscount
-          const affSavings = noDiscount ? 0 : aff.events.reduce((s, e) => s + (e.gross - e.final), 0)
+          const noDiscount = false  // all affiliates get 5% on public view
+          const affSavings = aff.events.reduce((s, e) => s + (e.gross - e.final), 0)
           const byTeam = {}
           aff.events.forEach(e => { (byTeam[e.team] = byTeam[e.team] || []).push(e) })
           const status = balance <= 0.005 ? 'paid' : paid > 0 ? 'partial' : 'unpaid'
@@ -135,7 +135,6 @@ function PublicView({ payments }) {
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 4 }}>
                       <div className="serif" style={{ fontSize: 24 }}>{aff.name}</div>
-                      {noDiscount && <span style={{ fontSize: 10, background: 'rgba(11,31,58,0.08)', color: 'var(--navy)', padding: '3px 8px', borderRadius: 20, fontWeight: 600, letterSpacing: '0.06em' }}>CBU BRANCH</span>}
                       {affSavings > 0 && <span style={{ fontSize: 11, background: 'rgba(27,123,63,0.1)', color: 'var(--green)', padding: '3px 10px', borderRadius: 20, fontWeight: 600 }}>Saving {fmt(affSavings)}</span>}
                     </div>
                     <div style={{ fontSize: 12, color: 'var(--muted)' }}>
@@ -172,12 +171,6 @@ function PublicView({ payments }) {
                             <div className="num" style={{ fontSize: 22, fontWeight: 700, color: 'var(--green)' }}>−{fmt(affSavings)}</div>
                             <div style={{ fontSize: 10, color: 'var(--green)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>You Save</div>
                           </div>
-                        </div>
-                      )}
-                      {noDiscount && (
-                        <div style={{ margin: '16px 16px 0', padding: '12px 16px', background: 'rgba(11,31,58,0.05)', border: '1px solid var(--line)', borderRadius: 4 }}>
-                          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--navy)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>CBU Branch — Standard Pricing</div>
-                          <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>CBU teams pay the standard entry fee — the same rate CBU pays the tournament organizer.</div>
                         </div>
                       )}
                       <div style={{ padding: '16px' }}>
@@ -270,7 +263,6 @@ function AffRow({ aff, paid, selected, onClick }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
             <Pill status={status} />
             <span className="serif" style={{ fontSize: 22 }}>{aff.name}</span>
-            {aff.noDiscount && <span style={{ fontSize: 9, background: 'rgba(11,31,58,0.1)', color: 'var(--navy)', padding: '3px 7px', borderRadius: 2, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>CBU Branch</span>}
           </div>
           <div style={{ fontSize: 11, color: 'var(--muted)' }}>
             {aff.events.length > 0 ? `${aff.events.length} event${aff.events.length !== 1 ? 's' : ''} · ${aff.teams.length} team${aff.teams.length !== 1 ? 's' : ''}` : 'Prior invoice'}
@@ -298,7 +290,7 @@ function Detail({ aff, paidMap, log, onClose, onRefresh }) {
   const [busy, setBusy] = useState(false)
   const byTeam = useMemo(() => { const m = {}; aff.events.forEach(e => { (m[e.team] = m[e.team] || []).push(e) }); return m }, [aff])
   const affLog = log.filter(l => l.affiliate === aff.name).slice().reverse()
-  const noDiscount = !!aff.noDiscount
+  const noDiscount = !!aff.adminNoDiscount
 
   const recordPayment = async (amt, noteText) => {
     if (!amt || amt <= 0) return
