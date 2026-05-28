@@ -29,10 +29,10 @@ const PS_PROFIT = [
     {"team":"CBU 2027 Scout Team Menendez","eventName":"Boston Classic","startDate":"2026-07-06","endDate":"2026-07-11","affPays":2560.25,"psCost":650,"profit":1910.25},
   ],"totalAffPays":32471.0,"totalPsCost":12085,"totalProfit":20386.0},
   {"name":"Jacksonville","invoice":"Prospect Select","events":[
-    {"team":"CBU United Fleming 17U","eventName":"Palm Beach Classic","startDate":"2026-06-05","endDate":"2026-06-10","affPays":1995,"psCost":650,"profit":1345},
-    {"team":"CBU United Murphy - 15U","eventName":"Palm Beach Classic","startDate":"2026-06-05","endDate":"2026-06-10","affPays":1995,"psCost":650,"profit":1345},
-    {"team":"CBU United Fleming 17U","eventName":"Black Bear Classic","startDate":"2026-06-17","endDate":"2026-06-21","affPays":1995,"psCost":650,"profit":1345},
-    {"team":"CBU United Murphy - 15U","eventName":"Palm Beach Open","startDate":"2026-06-20","endDate":"2026-06-24","affPays":1705.25,"psCost":650,"profit":1055.25},
+    {"team":"CBU 2027 United Fleming","eventName":"Palm Beach Classic","startDate":"2026-06-05","endDate":"2026-06-10","affPays":1995,"psCost":650,"profit":1345},
+    {"team":"CBU United 2029 Murphy","eventName":"Palm Beach Classic","startDate":"2026-06-05","endDate":"2026-06-10","affPays":1995,"psCost":650,"profit":1345},
+    {"team":"CBU 2027 United Fleming","eventName":"Black Bear Classic","startDate":"2026-06-17","endDate":"2026-06-21","affPays":1995,"psCost":650,"profit":1345},
+    {"team":"CBU United 2029 Murphy","eventName":"Palm Beach Open","startDate":"2026-06-20","endDate":"2026-06-24","affPays":1705.25,"psCost":650,"profit":1055.25},
   ],"totalAffPays":7690.25,"totalPsCost":2600,"totalProfit":5090.25},
 ]
 
