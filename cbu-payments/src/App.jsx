@@ -88,6 +88,36 @@ function TopNav({ page, onNavigate }) {
 }
 
 // ─── PUBLIC: Affiliate View ───────────────────────────────────────────────────
+// Compute per-event payment status using oldest-first waterfall.
+// Returns a Map from event (by reference) to 'paid' | 'partial' | 'owed', plus paidAmount for partials.
+function computeEventStatus(events, totalPaid) {
+  const sorted = [...events].sort((a, b) => new Date(a.startDate) - new Date(b.startDate))
+  let remaining = totalPaid
+  const statusMap = new Map()
+  for (const e of sorted) {
+    if (remaining >= e.final - 0.005) {
+      statusMap.set(e, { status: 'paid', paidAmount: e.final })
+      remaining -= e.final
+    } else if (remaining > 0.005) {
+      statusMap.set(e, { status: 'partial', paidAmount: +remaining.toFixed(2) })
+      remaining = 0
+    } else {
+      statusMap.set(e, { status: 'owed', paidAmount: 0 })
+    }
+  }
+  return statusMap
+}
+
+function EventStatusIcon({ status }) {
+  if (status === 'paid') {
+    return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--green)', background: 'rgba(27,123,63,0.1)', padding: '3px 8px', borderRadius: 3, whiteSpace: 'nowrap' }}>✓ Paid</span>
+  }
+  if (status === 'partial') {
+    return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--amber)', background: 'rgba(180,83,9,0.1)', padding: '3px 8px', borderRadius: 3, whiteSpace: 'nowrap' }}>◐ Partial</span>
+  }
+  return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--red)', background: 'rgba(200,16,46,0.1)', padding: '3px 8px', borderRadius: 3, whiteSpace: 'nowrap' }}>● Owed</span>
+}
+
 function PublicView({ payments }) {
   const [expanded, setExpanded] = useState(null)
   const paidMap = useMemo(() => {
@@ -123,6 +153,7 @@ function PublicView({ payments }) {
           const affSavings = aff.events.reduce((s, e) => s + (e.gross - e.final), 0)
           const byTeam = {}
           aff.events.forEach(e => { (byTeam[e.team] = byTeam[e.team] || []).push(e) })
+          const eventStatusMap = computeEventStatus(aff.events, paid)
           const status = balance <= 0.005 ? 'paid' : paid > 0 ? 'partial' : 'unpaid'
           const pct = Math.min(100, Math.round((paid / aff.finalTotal) * 100))
           const fillColor = { paid: 'var(--green)', partial: 'var(--amber)', unpaid: 'var(--red)' }[status]
@@ -198,7 +229,13 @@ function PublicView({ payments }) {
                                     <div key={i} style={{ padding: '10px 14px', display: 'grid', gridTemplateColumns: noDiscount ? '90px 1fr 110px' : '90px 1fr 90px 80px 100px', gap: 10, alignItems: 'center', fontSize: 12, borderTop: i > 0 ? '1px solid var(--line)' : 'none' }}>
                                       <div className="num" style={{ color: 'var(--muted)', fontSize: 10 }}>{fmtDate(e.startDate)}–{fmtDate(e.endDate)}</div>
                                       <div>
-                                        <div>{e.eventName}</div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                          <span>{e.eventName}</span>
+                                          {(() => {
+                                            const st = eventStatusMap.get(e)
+                                            return st ? <EventStatusIcon status={st.status} /> : null
+                                          })()}
+                                        </div>
                                         {e.invoice && <div style={{ marginTop: 2 }}><InvoiceBadge label={e.invoice} /></div>}
                                       </div>
                                       {noDiscount
