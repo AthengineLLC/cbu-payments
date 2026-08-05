@@ -37,6 +37,33 @@ const PS_PROFIT = [
 ]
 
 const fmt = (n) => '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const round2 = (n) => +Number(n).toFixed(2)
+
+// Merge Supabase-stored affiliates + line items into the static AFFILIATES list.
+// Line items become event-shaped rows; a 5% discount toggles final = amount * 0.95.
+function buildAffiliates(customAffs, lineItems) {
+  const byAff = {}
+  lineItems.forEach(li => { (byAff[li.affiliate] = byAff[li.affiliate] || []).push(li) })
+  const toEvent = (li) => {
+    const day = (li.created_at || '').slice(0, 10)
+    const amount = Number(li.amount)
+    return { team: li.team || 'Additional Charges', eventName: li.description, startDate: day, endDate: day,
+      entryFee: amount, gateFees: 0, gross: amount, final: li.discount ? round2(amount * 0.95) : amount,
+      lineItemId: li.id, lineDiscount: !!li.discount }
+  }
+  const merged = AFFILIATES.map(a => {
+    const extra = (byAff[a.name] || []).map(toEvent)
+    if (extra.length === 0) return a
+    return { ...a, events: [...a.events, ...extra], finalTotal: round2(a.finalTotal + extra.reduce((s, e) => s + e.final, 0)) }
+  })
+  customAffs.forEach(ca => {
+    if (AFFILIATES.some(a => a.name === ca.name)) return
+    const extra = (byAff[ca.name] || []).map(toEvent)
+    merged.push({ name: ca.name, teams: [], events: extra, finalTotal: round2(extra.reduce((s, e) => s + e.final, 0)), custom: true, affiliateId: ca.id })
+  })
+  merged.sort((a, b) => a.name === 'CBU' ? -1 : b.name === 'CBU' ? 1 : a.name.localeCompare(b.name))
+  return merged
+}
 const fmtDate = (s) => new Date(s + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 const fmtTs = (ts) => new Date(ts).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
 
@@ -118,7 +145,7 @@ function EventStatusIcon({ status }) {
   return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--red)', background: 'rgba(200,16,46,0.1)', padding: '3px 8px', borderRadius: 3, whiteSpace: 'nowrap' }}>● Owed</span>
 }
 
-function PublicView({ payments }) {
+function PublicView({ affiliates, payments }) {
   const [expanded, setExpanded] = useState(null)
   const paidMap = useMemo(() => {
     const m = {}
@@ -126,8 +153,8 @@ function PublicView({ payments }) {
     return m
   }, [payments])
 
-  const grandTotal   = AFFILIATES.reduce((s, a) => s + a.finalTotal, 0)
-  const grandSavings = AFFILIATES.filter(a => a.events.length > 0)
+  const grandTotal   = affiliates.reduce((s, a) => s + a.finalTotal, 0)
+  const grandSavings = affiliates.filter(a => a.events.length > 0)
     .reduce((s, a) => s + a.events.reduce((es, e) => es + (e.gross - e.final), 0), 0)
 
   return (
@@ -139,13 +166,13 @@ function PublicView({ payments }) {
       </div>
 
       <div className="stats-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', border: '1px solid var(--line)', background: 'var(--paper)', marginBottom: 24 }}>
-        <Stat label="Affiliates" value={AFFILIATES.length} />
+        <Stat label="Affiliates" value={affiliates.length} />
         <Stat label="Combined Owed" value={fmt(grandTotal)} />
         <Stat label="Total Savings (5%)" value={fmt(grandSavings)} color="var(--green)" last />
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {AFFILIATES.map(aff => {
+        {affiliates.map(aff => {
           const isOpen = expanded === aff.name
           const paid = paidMap[aff.name] || 0
           const balance = +(aff.finalTotal - paid).toFixed(2)
@@ -155,7 +182,7 @@ function PublicView({ payments }) {
           aff.events.forEach(e => { (byTeam[e.team] = byTeam[e.team] || []).push(e) })
           const eventStatusMap = computeEventStatus(aff.events, paid)
           const status = balance <= 0.005 ? 'paid' : paid > 0 ? 'partial' : 'unpaid'
-          const pct = Math.min(100, Math.round((paid / aff.finalTotal) * 100))
+          const pct = aff.finalTotal > 0 ? Math.min(100, Math.round((paid / aff.finalTotal) * 100)) : 0
           const fillColor = { paid: 'var(--green)', partial: 'var(--amber)', unpaid: 'var(--red)' }[status]
 
           return (
@@ -169,7 +196,7 @@ function PublicView({ payments }) {
                       {affSavings > 0 && <span style={{ fontSize: 11, background: 'rgba(27,123,63,0.1)', color: 'var(--green)', padding: '3px 10px', borderRadius: 20, fontWeight: 600 }}>Saving {fmt(affSavings)}</span>}
                     </div>
                     <div style={{ fontSize: 12, color: 'var(--muted)' }}>
-                      {aff.events.length > 0 ? `${aff.events.length} event${aff.events.length !== 1 ? 's' : ''} · ${aff.teams.length} team${aff.teams.length !== 1 ? 's' : ''}` : 'Prior invoice'}
+                      {aff.events.length > 0 ? `${aff.events.length} event${aff.events.length !== 1 ? 's' : ''} · ${aff.teams.length} team${aff.teams.length !== 1 ? 's' : ''}` : aff.custom ? 'No charges yet' : 'Prior invoice'}
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
@@ -189,7 +216,7 @@ function PublicView({ payments }) {
               {isOpen && (
                 <div style={{ borderTop: '1px solid var(--line)' }}>
                   {aff.events.length === 0 ? (
-                    <div style={{ padding: 20, textAlign: 'center', color: 'var(--muted)', fontStyle: 'italic' }}>Prior invoice — event detail not available.</div>
+                    <div style={{ padding: 20, textAlign: 'center', color: 'var(--muted)', fontStyle: 'italic' }}>{aff.custom ? 'No charges yet.' : 'Prior invoice — event detail not available.'}</div>
                   ) : (
                     <>
                       {affSavings > 0 && (
@@ -214,7 +241,7 @@ function PublicView({ payments }) {
                               <div style={{ background: 'var(--navy)', color: 'white', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                                 <span style={{ fontWeight: 600, fontSize: 13 }}>{team}</span>
                                 <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                                  {!noDiscount && <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', textDecoration: 'line-through' }} className="num">{fmt(teamGross)}</span>}
+                                  {!noDiscount && teamSavings > 0 && <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', textDecoration: 'line-through' }} className="num">{fmt(teamGross)}</span>}
                                   <span className="num" style={{ fontSize: 14, fontWeight: 600 }}>{fmt(teamFinal)}</span>
                                   {!noDiscount && teamSavings > 0 && <span style={{ fontSize: 10, background: 'rgba(27,123,63,0.3)', color: '#86efac', padding: '2px 7px', borderRadius: 10 }}>−{fmt(teamSavings)}</span>}
                                 </div>
@@ -240,8 +267,8 @@ function PublicView({ payments }) {
                                       </div>
                                       {noDiscount
                                         ? <div className="num" style={{ textAlign: 'right', fontWeight: 700 }}>{fmt(e.final)}</div>
-                                        : <><div className="num" style={{ textAlign: 'right', color: 'var(--muted)', textDecoration: 'line-through', fontSize: 12 }}>{fmt(e.gross)}</div>
-                                           <div className="num" style={{ textAlign: 'right', color: 'var(--green)', fontWeight: 600 }}>−{fmt(e.gross-e.final)}</div>
+                                        : <><div className="num" style={{ textAlign: 'right', color: 'var(--muted)', textDecoration: 'line-through', fontSize: 12 }}>{e.gross > e.final ? fmt(e.gross) : ''}</div>
+                                           <div className="num" style={{ textAlign: 'right', color: 'var(--green)', fontWeight: 600 }}>{e.gross > e.final ? '−' + fmt(e.gross-e.final) : '—'}</div>
                                            <div className="num" style={{ textAlign: 'right', fontWeight: 700 }}>{fmt(e.final)}</div></>
                                       }
                                     </div>
@@ -290,7 +317,7 @@ function AdminLock({ onUnlock }) {
 // ─── ADMIN: Affiliate Row ─────────────────────────────────────────────────────
 function AffRow({ aff, paid, selected, onClick }) {
   const balance = +(aff.finalTotal - paid).toFixed(2)
-  const pct = Math.min(100, Math.round((paid / aff.finalTotal) * 100))
+  const pct = aff.finalTotal > 0 ? Math.min(100, Math.round((paid / aff.finalTotal) * 100)) : 0
   const status = balance <= 0.005 ? 'paid' : paid > 0 ? 'partial' : 'unpaid'
   const fillColor = { paid: 'var(--green)', partial: 'var(--amber)', unpaid: 'var(--red)' }[status]
   return (
@@ -302,7 +329,7 @@ function AffRow({ aff, paid, selected, onClick }) {
             <span className="serif" style={{ fontSize: 22 }}>{aff.name}</span>
           </div>
           <div style={{ fontSize: 11, color: 'var(--muted)' }}>
-            {aff.events.length > 0 ? `${aff.events.length} event${aff.events.length !== 1 ? 's' : ''} · ${aff.teams.length} team${aff.teams.length !== 1 ? 's' : ''}` : 'Prior invoice'}
+            {aff.events.length > 0 ? `${aff.events.length} event${aff.events.length !== 1 ? 's' : ''} · ${aff.teams.length} team${aff.teams.length !== 1 ? 's' : ''}` : aff.custom ? 'No charges yet' : 'Prior invoice'}
           </div>
         </div>
         <div style={{ textAlign: 'right', flexShrink: 0 }}>
@@ -345,6 +372,48 @@ function Detail({ aff, paidMap, log, onClose, onRefresh }) {
     setBusy(false)
   }
 
+  // ── Line items (invoicing) ──
+  const [liDesc, setLiDesc] = useState('')
+  const [liAmount, setLiAmount] = useState('')
+  const [liTeam, setLiTeam] = useState('')
+  const [liDisc, setLiDisc] = useState(false)
+
+  const addLineItem = async () => {
+    const amt = parseFloat(liAmount)
+    if (!liDesc.trim() || !amt || amt <= 0) return
+    setBusy(true)
+    const { error } = await supabase.from('line_items').insert({ affiliate: aff.name, description: liDesc.trim(), team: liTeam.trim() || null, amount: amt, discount: liDisc })
+    if (!error) { await onRefresh(); setLiDesc(''); setLiAmount(''); setLiTeam(''); setLiDisc(false) }
+    else alert('Error: ' + error.message)
+    setBusy(false)
+  }
+  const toggleLineDiscount = async (e) => {
+    setBusy(true)
+    const { error } = await supabase.from('line_items').update({ discount: !e.lineDiscount }).eq('id', e.lineItemId)
+    if (!error) await onRefresh()
+    else alert('Error: ' + error.message)
+    setBusy(false)
+  }
+  const deleteLine = async (e) => {
+    if (!confirm(`Remove "${e.eventName}" (${fmt(e.final)}) from ${aff.name}?`)) return
+    setBusy(true)
+    const { error } = await supabase.from('line_items').delete().eq('id', e.lineItemId)
+    if (!error) await onRefresh()
+    else alert('Error: ' + error.message)
+    setBusy(false)
+  }
+  const deleteAffiliate = async () => {
+    if (!confirm(`Delete affiliate "${aff.name}" and all of its line items and payments?`)) return
+    setBusy(true)
+    await supabase.from('line_items').delete().eq('affiliate', aff.name)
+    await supabase.from('payments').delete().eq('affiliate', aff.name)
+    const { error } = await supabase.from('affiliates').delete().eq('id', aff.affiliateId)
+    if (error) alert('Error: ' + error.message)
+    onClose()
+    await onRefresh()
+    setBusy(false)
+  }
+
   return (
     <div style={{ marginTop: 16, background: 'var(--paper)', border: '1px solid var(--line)', padding: '24px 18px 28px', position: 'relative' }}>
       <div style={{ position: 'absolute', top: 0, left: 0, width: 5, height: 50, background: 'var(--red)' }} />
@@ -352,9 +421,12 @@ function Detail({ aff, paidMap, log, onClose, onRefresh }) {
         <div>
           <div style={{ fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 4 }}>Affiliate Detail</div>
           <div className="serif" style={{ fontSize: 32, lineHeight: 1, marginBottom: 6 }}>{aff.name}</div>
-          <div style={{ fontSize: 12, color: 'var(--muted)' }}>{aff.teams.join(' · ') || 'Prior invoice'}</div>
+          <div style={{ fontSize: 12, color: 'var(--muted)' }}>{aff.teams.join(' · ') || (aff.custom ? 'Custom affiliate' : 'Prior invoice')}</div>
         </div>
-        <button onClick={onClose} style={{ background: 'transparent', border: '1px solid var(--line)', padding: '7px 12px', fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--navy)', whiteSpace: 'nowrap', flexShrink: 0 }}>Close</button>
+        <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+          {aff.custom && <button disabled={busy} onClick={deleteAffiliate} style={{ background: 'transparent', border: '1px solid var(--red)', padding: '7px 12px', fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--red)', whiteSpace: 'nowrap' }}>Delete Affiliate</button>}
+          <button onClick={onClose} style={{ background: 'transparent', border: '1px solid var(--line)', padding: '7px 12px', fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--navy)', whiteSpace: 'nowrap' }}>Close</button>
+        </div>
       </div>
 
       <div className="stats-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', border: '1px solid var(--line)', marginBottom: 22 }}>
@@ -392,8 +464,41 @@ function Detail({ aff, paidMap, log, onClose, onRefresh }) {
           style={{ background: 'var(--red)', color: 'white', border: 'none', padding: '11px 14px', fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600, opacity: (busy || balance <= 0.005) ? 0.4 : 1, whiteSpace: 'nowrap' }}>Paid in Full</button>
       </div>
 
+      <div style={{ fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 12 }}>Add Line Item</div>
+      <div className="pay-grid" style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr 1fr auto auto', gap: 8, marginBottom: 22, alignItems: 'end' }}>
+        <div>
+          <label style={{ fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--muted)', display: 'block', marginBottom: 5 }}>Description</label>
+          <input type="text" value={liDesc} onChange={e => setLiDesc(e.target.value)} placeholder="Hats, uniforms, event entry…"
+            style={{ width: '100%', border: '1px solid var(--line)', background: 'white', padding: '11px 10px', fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
+        </div>
+        <div>
+          <label style={{ fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--muted)', display: 'block', marginBottom: 5 }}>Amount</label>
+          <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--line)', background: 'white', padding: '0 10px' }}>
+            <span className="num" style={{ color: 'var(--muted)', marginRight: 5, fontSize: 14 }}>$</span>
+            <input type="number" step="0.01" min="0" value={liAmount} onChange={e => setLiAmount(e.target.value)} placeholder="0.00" className="num"
+              style={{ border: 'none', outline: 'none', padding: '11px 0', fontSize: 15, width: '100%', background: 'transparent' }} />
+          </div>
+        </div>
+        <div>
+          <label style={{ fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--muted)', display: 'block', marginBottom: 5 }}>Group (optional)</label>
+          <input type="text" value={liTeam} onChange={e => setLiTeam(e.target.value)} placeholder="Team / Merchandise…"
+            style={{ width: '100%', border: '1px solid var(--line)', background: 'white', padding: '11px 10px', fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
+        </div>
+        <button onClick={() => setLiDisc(!liDisc)} title="Apply 5% discount to this line"
+          style={{ background: liDisc ? 'var(--green)' : 'white', color: liDisc ? 'white' : 'var(--muted)', border: `1px solid ${liDisc ? 'var(--green)' : 'var(--line)'}`, padding: '11px 14px', fontSize: 11, letterSpacing: '0.08em', fontWeight: 700, whiteSpace: 'nowrap' }}>
+          5% {liDisc ? '✓' : ''}
+        </button>
+        <button disabled={busy || !liDesc.trim() || !parseFloat(liAmount) || parseFloat(liAmount) <= 0} onClick={addLineItem}
+          style={{ background: 'var(--navy)', color: 'white', border: 'none', padding: '11px 14px', fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600, opacity: (busy || !liDesc.trim() || !parseFloat(liAmount) || parseFloat(liAmount) <= 0) ? 0.4 : 1, whiteSpace: 'nowrap' }}>+ Add Line</button>
+      </div>
+      {parseFloat(liAmount) > 0 && liDisc && (
+        <div style={{ fontSize: 11, color: 'var(--green)', marginTop: -14, marginBottom: 18 }}>
+          With 5% discount: {fmt(parseFloat(liAmount))} → <strong>{fmt(round2(parseFloat(liAmount) * 0.95))}</strong>
+        </div>
+      )}
+
       <div style={{ fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 12 }}>Event Breakdown</div>
-      {aff.events.length === 0 && <div style={{ padding: 16, textAlign: 'center', color: 'var(--muted)', fontStyle: 'italic', border: '1px dashed var(--line)', marginBottom: 16 }}>Prior invoice — no event detail.</div>}
+      {aff.events.length === 0 && <div style={{ padding: 16, textAlign: 'center', color: 'var(--muted)', fontStyle: 'italic', border: '1px dashed var(--line)', marginBottom: 16 }}>{aff.custom ? 'No line items yet — add one above.' : 'Prior invoice — no event detail.'}</div>}
       {Object.entries(byTeam).map(([team, evs]) => {
         const teamSum = evs.reduce((s,e) => s+e.final, 0)
         return (
@@ -414,6 +519,16 @@ function Detail({ aff, paidMap, log, onClose, onRefresh }) {
                     <div>
                       <div>{e.eventName}</div>
                       {e.invoice && <div style={{ marginTop: 2 }}><InvoiceBadge label={e.invoice} /></div>}
+                      {e.lineItemId && (
+                        <div style={{ marginTop: 4, display: 'flex', gap: 6 }}>
+                          <button disabled={busy} onClick={() => toggleLineDiscount(e)} title={e.lineDiscount ? 'Remove 5% discount' : 'Apply 5% discount'}
+                            style={{ background: e.lineDiscount ? 'var(--green)' : 'white', color: e.lineDiscount ? 'white' : 'var(--muted)', border: `1px solid ${e.lineDiscount ? 'var(--green)' : 'var(--line)'}`, padding: '3px 8px', fontSize: 9, letterSpacing: '0.08em', fontWeight: 700, cursor: 'pointer' }}>
+                            5% {e.lineDiscount ? '✓' : ''}
+                          </button>
+                          <button disabled={busy} onClick={() => deleteLine(e)}
+                            style={{ background: 'white', border: '1px solid var(--line)', color: 'var(--red)', padding: '3px 8px', fontSize: 9, letterSpacing: '0.08em', fontWeight: 700, cursor: 'pointer' }}>✕ Remove</button>
+                        </div>
+                      )}
                     </div>
                     {noDiscount
                       ? <div className="num" style={{ textAlign:'right', fontWeight:600 }}>{fmt(e.final)}</div>
@@ -584,20 +699,12 @@ function ProfitTab() {
 }
 
 // ─── ADMIN Portal ─────────────────────────────────────────────────────────────
-function AdminPortal() {
+function AdminPortal({ affiliates, payments, onRefresh }) {
   const [unlocked, setUnlocked] = useState(false)
   const [tab, setTab] = useState('payments')
-  const [payments, setPayments] = useState([])
   const [selected, setSelected] = useState(null)
-  const [loading, setLoading] = useState(false)
-
-  const loadPayments = async () => {
-    setLoading(true)
-    const { data, error } = await supabase.from('payments').select('*').order('created_at', { ascending: true })
-    if (!error) setPayments(data || [])
-    setLoading(false)
-  }
-  useEffect(() => { if (unlocked) loadPayments() }, [unlocked])
+  const [newAff, setNewAff] = useState('')
+  const [addingAff, setAddingAff] = useState(false)
 
   const paidMap = useMemo(() => {
     const m = {}
@@ -605,13 +712,24 @@ function AdminPortal() {
     return m
   }, [payments])
 
-  const totals = useMemo(() => AFFILIATES.reduce((acc, a) => {
+  const totals = useMemo(() => affiliates.reduce((acc, a) => {
     const paid = paidMap[a.name] || 0
     return { final: acc.final + a.finalTotal, paid: acc.paid + paid, balance: acc.balance + (a.finalTotal - paid) }
-  }, { final: 0, paid: 0, balance: 0 }), [paidMap])
+  }, { final: 0, paid: 0, balance: 0 }), [affiliates, paidMap])
+
+  const addAffiliate = async () => {
+    const name = newAff.trim()
+    if (!name) return
+    if (affiliates.some(a => a.name.toLowerCase() === name.toLowerCase())) { alert('An affiliate with that name already exists.'); return }
+    setAddingAff(true)
+    const { error } = await supabase.from('affiliates').insert({ name })
+    if (error) alert('Error: ' + error.message)
+    else { setNewAff(''); await onRefresh(); setSelected(name) }
+    setAddingAff(false)
+  }
 
   if (!unlocked) return <AdminLock onUnlock={() => setUnlocked(true)} />
-  const selectedAff = selected ? AFFILIATES.find(a => a.name === selected) : null
+  const selectedAff = selected ? affiliates.find(a => a.name === selected) : null
 
   return (
     <div style={{ maxWidth: 1100, margin: '0 auto', padding: '24px 16px 80px' }}>
@@ -644,17 +762,20 @@ function AdminPortal() {
             <div className="serif" style={{ fontSize: 26 }}>Affiliates</div>
             <div style={{ fontSize: 10, color: 'var(--muted)', letterSpacing: '0.14em', textTransform: 'uppercase' }}>Tap to manage</div>
           </div>
-          {loading
-            ? <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Loading…</div>
-            : <div style={{ background: 'var(--paper)', border: '1px solid var(--line)' }}>
-                {AFFILIATES.map((aff, i) => (
-                  <div key={aff.name} style={{ borderTop: i > 0 ? '1px solid var(--line)' : 'none' }}>
-                    <AffRow aff={aff} paid={paidMap[aff.name] || 0} selected={selected === aff.name} onClick={() => setSelected(selected === aff.name ? null : aff.name)} />
-                  </div>
-                ))}
+          <div style={{ background: 'var(--paper)', border: '1px solid var(--line)' }}>
+            {affiliates.map((aff, i) => (
+              <div key={aff.name} style={{ borderTop: i > 0 ? '1px solid var(--line)' : 'none' }}>
+                <AffRow aff={aff} paid={paidMap[aff.name] || 0} selected={selected === aff.name} onClick={() => setSelected(selected === aff.name ? null : aff.name)} />
               </div>
-          }
-          {selectedAff && <Detail aff={selectedAff} paidMap={paidMap} log={payments} onClose={() => setSelected(null)} onRefresh={loadPayments} />}
+            ))}
+          </div>
+          <div style={{ marginTop: 14, display: 'flex', gap: 8 }}>
+            <input value={newAff} onChange={e => setNewAff(e.target.value)} onKeyDown={e => e.key === 'Enter' && addAffiliate()} placeholder="New affiliate name…"
+              style={{ flex: 1, border: '1px solid var(--line)', background: 'white', padding: '11px 12px', fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
+            <button disabled={addingAff || !newAff.trim()} onClick={addAffiliate}
+              style={{ background: 'var(--navy)', color: 'white', border: 'none', padding: '11px 16px', fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600, opacity: (addingAff || !newAff.trim()) ? 0.4 : 1, whiteSpace: 'nowrap' }}>+ Add Affiliate</button>
+          </div>
+          {selectedAff && <Detail aff={selectedAff} paidMap={paidMap} log={payments} onClose={() => setSelected(null)} onRefresh={onRefresh} />}
         </>
       )}
       {tab === 'profit' && <ProfitTab />}
@@ -667,14 +788,25 @@ function AdminPortal() {
 export default function App() {
   const [page, setPage] = useState('public')
   const [payments, setPayments] = useState([])
-  useEffect(() => {
-    supabase.from('payments').select('affiliate, amount').then(({ data }) => { if (data) setPayments(data) })
-  }, [])
+  const [customAffs, setCustomAffs] = useState([])
+  const [lineItems, setLineItems] = useState([])
+  const loadAll = async () => {
+    const [p, a, li] = await Promise.all([
+      supabase.from('payments').select('*').order('created_at', { ascending: true }),
+      supabase.from('affiliates').select('*').order('created_at', { ascending: true }),
+      supabase.from('line_items').select('*').order('created_at', { ascending: true }),
+    ])
+    if (p.data) setPayments(p.data)
+    if (a.data) setCustomAffs(a.data)
+    if (li.data) setLineItems(li.data)
+  }
+  useEffect(() => { loadAll() }, [])
+  const affiliates = useMemo(() => buildAffiliates(customAffs, lineItems), [customAffs, lineItems])
   return (
     <div style={{ minHeight: '100vh' }}>
       <TopNav page={page} onNavigate={setPage} />
-      {page === 'public' && <PublicView payments={payments} />}
-      {page === 'admin'  && <AdminPortal />}
+      {page === 'public' && <PublicView affiliates={affiliates} payments={payments} />}
+      {page === 'admin'  && <AdminPortal affiliates={affiliates} payments={payments} onRefresh={loadAll} />}
     </div>
   )
 }
