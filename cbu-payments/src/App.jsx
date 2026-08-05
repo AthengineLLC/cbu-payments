@@ -418,7 +418,7 @@ function Detail({ aff, paidMap, log, onClose, onRefresh }) {
                     {noDiscount
                       ? <div className="num" style={{ textAlign:'right', fontWeight:600 }}>{fmt(e.final)}</div>
                       : <><div className="num" style={{ textAlign:'right', color:'var(--muted)' }}>{fmt(e.gross)}</div>
-                         <div className="num" style={{ textAlign:'right', color:'var(--red)' }}>−{fmt(e.gross*0.05)}</div>
+                         <div className="num" style={{ textAlign:'right', color:'var(--red)' }}>−{fmt(e.gross-e.final)}</div>
                          <div className="num" style={{ textAlign:'right', fontWeight:600 }}>{fmt(e.final)}</div></>
                     }
                   </div>
