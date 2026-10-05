@@ -1904,7 +1904,8 @@ export const FALL_2026_AFFILIATES = [
         "entryFee": 495.0,
         "gateFees": 0.0,
         "gross": 495.0,
-        "final": 470.25
+        "final": 470.25,
+        "creditNeeded": true
       },
       {
         "team": "CBU United 11u Olasin",
