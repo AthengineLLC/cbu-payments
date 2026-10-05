@@ -1,5 +1,9 @@
 -- Run once in the Supabase SQL editor before deploying the season switcher.
 --
+-- PREREQUISITE: ../supabase-setup.sql must have been run first. It creates the
+-- affiliates and line_items tables, and as of Oct 2026 it had never been run on
+-- the live project - line_items did not exist, so this script failed partway.
+--
 -- Payments and line items were previously untagged because the tracker only
 -- ever showed one season. Every existing row is Summer 2026, so the default
 -- backfills them; the app writes an explicit season id on every insert from
