@@ -53,6 +53,14 @@ function Pill({ status }) {
   return <span style={{ fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700, padding: '4px 8px', background: bg, color: 'white', borderRadius: 2, whiteSpace: 'nowrap' }}>{label}</span>
 }
 
+function CreditFlag() {
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'white', background: 'var(--red-deep)', padding: '4px 8px', borderRadius: 3, whiteSpace: 'nowrap' }}>
+      Credit Needed
+    </span>
+  )
+}
+
 function InvoiceBadge({ label }) {
   const colors = { 'Perfect Game': ['#1a365d','#bee3f8'], 'Prospect Select': ['#1a3a1a','#c6f6d5'] }
   const [bg, text] = colors[label] || ['#333','#eee']
@@ -241,6 +249,7 @@ function PublicView({ affiliates, payments, season }) {
                                             const st = eventStatusMap.get(e)
                                             return st ? <EventStatusIcon status={st.status} /> : null
                                           })()}
+                                          {e.creditNeeded && <CreditFlag />}
                                         </div>
                                         {e.invoice && <div style={{ marginTop: 2 }}><InvoiceBadge label={e.invoice} /></div>}
                                       </div>
@@ -325,7 +334,7 @@ function AffRow({ aff, paid, selected, onClick }) {
 }
 
 // ─── ADMIN: Detail Panel ──────────────────────────────────────────────────────
-function Detail({ aff, paidMap, log, onClose, onRefresh, season }) {
+function Detail({ aff, paidMap, log, onClose, onRefresh, season, onInvoice }) {
   const paid = paidMap[aff.name] || 0
   const balance = +(aff.finalTotal - paid).toFixed(2)
   const [amount, setAmount] = useState('')
@@ -402,7 +411,8 @@ function Detail({ aff, paidMap, log, onClose, onRefresh, season }) {
           <div className="serif" style={{ fontSize: 32, lineHeight: 1, marginBottom: 6 }}>{aff.name}</div>
           <div style={{ fontSize: 12, color: 'var(--muted)' }}>{aff.teams.join(' · ') || (aff.custom ? 'Custom affiliate' : 'Prior invoice')}</div>
         </div>
-        <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+        <div style={{ display: 'flex', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
+          {aff.events.length > 0 && <button onClick={onInvoice} style={{ background: 'var(--navy)', border: '1px solid var(--navy)', padding: '7px 12px', fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'white', whiteSpace: 'nowrap' }}>Export Invoice</button>}
           {aff.custom && <button disabled={busy} onClick={deleteAffiliate} style={{ background: 'transparent', border: '1px solid var(--red)', padding: '7px 12px', fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--red)', whiteSpace: 'nowrap' }}>Delete Affiliate</button>}
           <button onClick={onClose} style={{ background: 'transparent', border: '1px solid var(--line)', padding: '7px 12px', fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--navy)', whiteSpace: 'nowrap' }}>Close</button>
         </div>
@@ -496,7 +506,10 @@ function Detail({ aff, paidMap, log, onClose, onRefresh, season }) {
                   <div key={i} style={{ padding: '10px 14px', display: 'grid', gridTemplateColumns: noDiscount ? '90px 1fr 100px' : '90px 1fr 85px 80px 95px', gap: 8, alignItems: 'center', fontSize: 12, borderTop: i > 0 ? '1px solid var(--line)' : 'none' }}>
                     <div className="num" style={{ color: 'var(--muted)', fontSize: 10 }}>{fmtDate(e.startDate)}–{fmtDate(e.endDate)}</div>
                     <div>
-                      <div>{e.eventName}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <span>{e.eventName}</span>
+                        {e.creditNeeded && <CreditFlag />}
+                      </div>
                       {e.invoice && <div style={{ marginTop: 2 }}><InvoiceBadge label={e.invoice} /></div>}
                       {e.lineItemId && (
                         <div style={{ marginTop: 4, display: 'flex', gap: 6 }}>
@@ -690,6 +703,148 @@ function ProfitTab({ season }) {
   )
 }
 
+// ─── Invoice export ───────────────────────────────────────────────────────────
+function InvoiceDoc({ aff, paid, season }) {
+  const byTeam = {}
+  aff.events.forEach(e => { (byTeam[e.team] = byTeam[e.team] || []).push(e) })
+  const listTotal = aff.events.reduce((s, e) => s + e.gross, 0)
+  const savings = round2(listTotal - aff.finalTotal)
+  const balance = round2(aff.finalTotal - paid)
+  const statusMap = computeEventStatus(aff.events, paid)
+  const credits = aff.events.filter(e => e.creditNeeded)
+  const issued = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+  const cell = { padding: '7px 8px', borderBottom: '1px solid #e2ddd3', fontSize: 11, verticalAlign: 'top' }
+  const head = { padding: '6px 8px', fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#6b7280', borderBottom: '1px solid #0B1F3A', textAlign: 'left' }
+
+  return (
+    <div className="invoice-page" style={{ background: 'white', color: '#0B1F3A', padding: '30px 32px', maxWidth: 760, margin: '0 auto 24px', border: '1px solid #e2ddd3' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 20, borderBottom: '2px solid #0B1F3A', paddingBottom: 14 }}>
+        <div>
+          <div style={{ fontFamily: "'DM Serif Display', Georgia, serif", fontSize: 24, lineHeight: 1.1 }}>CBU Tampa Baseball</div>
+          <div style={{ fontSize: 11, color: '#6b7280', marginTop: 4 }}>{season.label} &middot; {season.invoiceNote}</div>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <div style={{ fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#C8102E', fontWeight: 700 }}>Invoice</div>
+          <div className="num" style={{ fontSize: 11, color: '#6b7280', marginTop: 4 }}>Issued {issued}</div>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap', margin: '16px 0 20px' }}>
+        <div>
+          <div style={{ fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#6b7280', marginBottom: 4 }}>Billed to</div>
+          <div style={{ fontFamily: "'DM Serif Display', Georgia, serif", fontSize: 22 }}>{aff.name}</div>
+          <div style={{ fontSize: 11, color: '#6b7280', marginTop: 3 }}>
+            {aff.events.length} event{aff.events.length !== 1 ? 's' : ''} &middot; {Object.keys(byTeam).length} team{Object.keys(byTeam).length !== 1 ? 's' : ''}
+          </div>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <div style={{ fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#6b7280', marginBottom: 4 }}>Balance due</div>
+          <div className="num" style={{ fontSize: 28, fontWeight: 700, color: balance > 0.005 ? '#0B1F3A' : '#1B7B3F' }}>{fmt(balance)}</div>
+        </div>
+      </div>
+
+      {Object.entries(byTeam).map(([team, evs]) => (
+        <div key={team} className="invoice-team" style={{ marginBottom: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10, borderBottom: '1px solid #0B1F3A', paddingBottom: 4, marginBottom: 2 }}>
+            <span style={{ fontWeight: 600, fontSize: 12 }}>{team}</span>
+            <span className="num" style={{ fontSize: 12, fontWeight: 600 }}>{fmt(evs.reduce((s, e) => s + e.final, 0))}</span>
+          </div>
+          <table className="invoice-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr>
+                <th style={{ ...head, width: 92 }}>Dates</th>
+                <th style={head}>Event</th>
+                <th style={{ ...head, textAlign: 'right', width: 78 }}>List</th>
+                <th style={{ ...head, textAlign: 'right', width: 78 }}>Savings</th>
+                <th style={{ ...head, textAlign: 'right', width: 84 }}>Your price</th>
+              </tr>
+            </thead>
+            <tbody>
+              {evs.map((e, i) => {
+                const st = statusMap.get(e)
+                return (
+                  <tr key={i}>
+                    <td className="num" style={{ ...cell, fontSize: 9, color: '#6b7280' }}>{fmtDate(e.startDate)}&ndash;{fmtDate(e.endDate)}</td>
+                    <td style={cell}>
+                      {e.eventName}
+                      {e.gateFees > 0 && <div style={{ fontSize: 9, color: '#6b7280', marginTop: 2 }}>Entry {fmt(e.entryFee)} less 5%, plus gate {fmt(e.gateFees)} at full</div>}
+                      <div style={{ marginTop: 3, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                        {st && <span style={{ fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, color: st.status === 'paid' ? '#1B7B3F' : st.status === 'partial' ? '#B45309' : '#C8102E' }}>
+                          {st.status === 'paid' ? 'Paid' : st.status === 'partial' ? `Partial — ${fmt(st.paidAmount)} applied` : 'Owed'}
+                        </span>}
+                        {e.creditNeeded && <span style={{ fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, color: 'var(--red-deep)' }}>Credit needed</span>}
+                      </div>
+                    </td>
+                    <td className="num" style={{ ...cell, textAlign: 'right', color: '#6b7280', textDecoration: e.gross > e.final ? 'line-through' : 'none' }}>{fmt(e.gross)}</td>
+                    <td className="num" style={{ ...cell, textAlign: 'right', color: '#1B7B3F' }}>{e.gross > e.final ? '−' + fmt(e.gross - e.final) : '—'}</td>
+                    <td className="num" style={{ ...cell, textAlign: 'right', fontWeight: 700 }}>{fmt(e.final)}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      ))}
+
+      <div style={{ marginTop: 18, marginLeft: 'auto', maxWidth: 300 }}>
+        {[['List price', fmt(listTotal), '#6b7280'],
+          ['Discount applied', '−' + fmt(savings), '#1B7B3F'],
+          ['Amount due', fmt(aff.finalTotal), '#0B1F3A'],
+          ['Paid to date', '−' + fmt(paid), '#1B7B3F']].map(([k, v, c]) => (
+          <div key={k} style={{ display: 'flex', justifyContent: 'space-between', gap: 16, padding: '5px 0', fontSize: 11, borderBottom: '1px solid #f0ece3' }}>
+            <span style={{ color: '#6b7280' }}>{k}</span>
+            <span className="num" style={{ color: c }}>{v}</span>
+          </div>
+        ))}
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, padding: '9px 0 0', borderTop: '2px solid #0B1F3A', marginTop: 4 }}>
+          <span style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 700 }}>Balance due</span>
+          <span className="num" style={{ fontSize: 17, fontWeight: 700, color: balance > 0.005 ? '#C8102E' : '#1B7B3F' }}>{fmt(balance)}</span>
+        </div>
+      </div>
+
+      {credits.length > 0 && (
+        <div style={{ marginTop: 20, padding: '11px 13px', border: '1px solid var(--red-deep)', borderLeft: '4px solid var(--red-deep)' }}>
+          <div style={{ fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 700, color: 'var(--red-deep)' }}>Credit needed</div>
+          <div style={{ fontSize: 11, marginTop: 5, lineHeight: 1.6 }}>
+            A credit is owed on {credits.length === 1 ? 'this event' : 'these events'}:{' '}
+            {credits.map(e => e.eventName).join(', ')}. The balance above does not yet reflect it.
+          </div>
+        </div>
+      )}
+
+      <div style={{ marginTop: 22, paddingTop: 12, borderTop: '1px solid #e2ddd3', fontSize: 9.5, color: '#6b7280', lineHeight: 1.7 }}>
+        {season.priceNote}<br />
+        Questions on this invoice? Reply to the email it came from. &middot; CBU Baseball &middot; #RedHatNation
+      </div>
+    </div>
+  )
+}
+
+function InvoiceOverlay({ affiliates, paidMap, season, onClose }) {
+  useEffect(() => {
+    const onKey = (ev) => { if (ev.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 500, background: 'rgba(11,31,58,0.55)', overflowY: 'auto' }}>
+      <div className="no-print" style={{ position: 'sticky', top: 0, zIndex: 2, background: 'var(--navy)', color: 'white', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 12 }}>
+          {affiliates.length === 1 ? `Invoice for ${affiliates[0].name}` : `${affiliates.length} invoices`} &middot; {season.label}
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={() => window.print()} style={{ background: 'var(--red)', color: 'white', border: 'none', padding: '9px 16px', fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600, borderRadius: 2 }}>Print / Save PDF</button>
+          <button onClick={onClose} style={{ background: 'transparent', color: 'white', border: '1px solid rgba(255,255,255,0.4)', padding: '9px 16px', fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', borderRadius: 2 }}>Close</button>
+        </div>
+      </div>
+      <div className="invoice-sheet" style={{ padding: '20px 12px 60px', WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
+        {affiliates.map(a => <InvoiceDoc key={a.name} aff={a} paid={paidMap[a.name] || 0} season={season} />)}
+      </div>
+    </div>
+  )
+}
+
 // ─── ADMIN Portal ─────────────────────────────────────────────────────────────
 function AdminPortal({ affiliates, payments, onRefresh, season }) {
   const [unlocked, setUnlocked] = useState(false)
@@ -697,6 +852,7 @@ function AdminPortal({ affiliates, payments, onRefresh, season }) {
   const [selected, setSelected] = useState(null)
   const [newAff, setNewAff] = useState('')
   const [addingAff, setAddingAff] = useState(false)
+  const [invoiceFor, setInvoiceFor] = useState(null)
 
   const paidMap = useMemo(() => {
     const m = {}
@@ -752,7 +908,10 @@ function AdminPortal({ affiliates, payments, onRefresh, season }) {
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12 }}>
             <div className="serif" style={{ fontSize: 26 }}>Affiliates</div>
-            <div style={{ fontSize: 10, color: 'var(--muted)', letterSpacing: '0.14em', textTransform: 'uppercase' }}>Tap to manage</div>
+            <button onClick={() => setInvoiceFor(affiliates.filter(a => a.events.length > 0))}
+              style={{ background: 'transparent', border: '1px solid var(--line)', padding: '7px 12px', fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--navy)', whiteSpace: 'nowrap' }}>
+              Export all invoices
+            </button>
           </div>
           <div style={{ background: 'var(--paper)', border: '1px solid var(--line)' }}>
             {affiliates.map((aff, i) => (
@@ -767,8 +926,11 @@ function AdminPortal({ affiliates, payments, onRefresh, season }) {
             <button disabled={addingAff || !newAff.trim()} onClick={addAffiliate}
               style={{ background: 'var(--navy)', color: 'white', border: 'none', padding: '11px 16px', fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600, opacity: (addingAff || !newAff.trim()) ? 0.4 : 1, whiteSpace: 'nowrap' }}>+ Add Affiliate</button>
           </div>
-          {selectedAff && <Detail aff={selectedAff} paidMap={paidMap} log={payments} onClose={() => setSelected(null)} onRefresh={onRefresh} season={season} />}
+          {selectedAff && <Detail aff={selectedAff} paidMap={paidMap} log={payments} onClose={() => setSelected(null)} onRefresh={onRefresh} season={season} onInvoice={() => setInvoiceFor([selectedAff])} />}
         </>
+      )}
+      {invoiceFor && invoiceFor.length > 0 && (
+        <InvoiceOverlay affiliates={invoiceFor} paidMap={paidMap} season={season} onClose={() => setInvoiceFor(null)} />
       )}
       {tab === 'profit' && <ProfitTab season={season} />}
       <div style={{ marginTop: 50, textAlign: 'center', fontSize: 10, color: 'var(--muted)', letterSpacing: '0.14em', textTransform: 'uppercase' }}>CBU Tampa Baseball · {season.invoiceNote}</div>

@@ -1070,7 +1070,8 @@ export const FALL_2026_AFFILIATES = [
         "entryFee": 995.0,
         "gateFees": 0.0,
         "gross": 995.0,
-        "final": 945.25
+        "final": 945.25,
+        "creditNeeded": true
       },
       {
         "team": "CBU 2029 Scout Team Pascual",
@@ -1214,7 +1215,8 @@ export const FALL_2026_AFFILIATES = [
         "entryFee": 2025.0,
         "gateFees": 0.0,
         "gross": 2025.0,
-        "final": 1923.75
+        "final": 1923.75,
+        "creditNeeded": true
       },
       {
         "team": "CBU Scout Team",
