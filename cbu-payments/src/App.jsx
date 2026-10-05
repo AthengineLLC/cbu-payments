@@ -34,6 +34,29 @@ function buildAffiliates(baseAffiliates, customAffs, lineItems) {
   merged.sort((a, b) => a.name === 'CBU' ? -1 : b.name === 'CBU' ? 1 : a.name.localeCompare(b.name))
   return merged
 }
+// What CBU actually paid the tournament organiser for an event. Lives in the
+// season's profit tables, keyed by team + event since neither id is unique alone.
+function eventCost(season, team, eventName) {
+  for (const group of [...season.pgProfit, ...season.psProfit]) {
+    for (const e of group.events) {
+      if (e.team === team && e.eventName === eventName) return e.pgCost ?? e.psCost ?? 0
+    }
+  }
+  return 0
+}
+
+// Events flagged as owing a credit that have not had one issued yet.
+function awaitingCredit(affiliates, credits, season) {
+  const issued = new Set(credits.map(c => c.affiliate + '\u0000' + (c.team || '') + '\u0000' + (c.event_name || '')))
+  const out = []
+  affiliates.forEach(a => a.events.forEach(e => {
+    if (!e.creditNeeded) return
+    if (issued.has(a.name + '\u0000' + e.team + '\u0000' + e.eventName)) return
+    out.push({ affiliate: a.name, team: e.team, eventName: e.eventName, startDate: e.startDate, amount: eventCost(season, e.team, e.eventName) })
+  }))
+  return out
+}
+
 const fmtDate = (s) => new Date(s + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 const fmtTs = (ts) => new Date(ts).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
 
@@ -845,8 +868,145 @@ function InvoiceOverlay({ affiliates, paidMap, season, onClose }) {
   )
 }
 
+// ─── ADMIN: Credits ───────────────────────────────────────────────────────────
+// A credit is what CBU paid the organiser for an event that was cancelled or
+// otherwise owed back. It is tracked beside the balance, never netted off it,
+// so it stays visible until it is actually settled.
+function CreditsTab({ affiliates, credits, season, onRefresh }) {
+  const [busy, setBusy] = useState(false)
+  const [affName, setAffName] = useState('')
+  const [evKey, setEvKey] = useState('')
+  const [amount, setAmount] = useState('')
+  const [note, setNote] = useState('')
+
+  const pending = useMemo(() => awaitingCredit(affiliates, credits, season), [affiliates, credits, season])
+  const issuedTotal = credits.reduce((s, c) => s + Number(c.amount), 0)
+  const pendingTotal = pending.reduce((s, c) => s + c.amount, 0)
+  const formAff = affiliates.find(a => a.name === affName)
+
+  const pickEvent = (key) => {
+    setEvKey(key)
+    if (!key || !formAff) return
+    const ev = formAff.events.find(e => e.team + ' — ' + e.eventName === key)
+    if (ev) setAmount(String(eventCost(season, ev.team, ev.eventName) || ''))
+  }
+
+  const write = async (row) => {
+    setBusy(true)
+    const { error } = await supabase.from('credits').insert({ ...row, season: season.id })
+    if (error) alert('Error: ' + error.message)
+    else await onRefresh()
+    setBusy(false)
+  }
+  const issuePending = (c) => write({ affiliate: c.affiliate, team: c.team, event_name: c.eventName, amount: c.amount, note: 'Issued from flagged event' })
+  const issueManual = async () => {
+    const amt = parseFloat(amount)
+    if (!affName || !amt || amt <= 0) return
+    const ev = formAff && formAff.events.find(e => e.team + ' — ' + e.eventName === evKey)
+    await write({ affiliate: affName, team: ev ? ev.team : null, event_name: ev ? ev.eventName : null, amount: amt, note: note.trim() || null })
+    setEvKey(''); setAmount(''); setNote('')
+  }
+  const remove = async (c) => {
+    if (!confirm(`Remove the ${fmt(c.amount)} credit for ${c.affiliate}?`)) return
+    setBusy(true)
+    const { error } = await supabase.from('credits').delete().eq('id', c.id)
+    if (error) alert('Error: ' + error.message)
+    else await onRefresh()
+    setBusy(false)
+  }
+
+  const field = { width: '100%', border: '1px solid var(--line)', background: 'white', padding: '11px 10px', fontSize: 13, fontFamily: 'inherit', outline: 'none' }
+  const label = { fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--muted)', display: 'block', marginBottom: 5 }
+
+  return (
+    <div>
+      <div style={{ marginBottom: 14 }}>
+        <div className="serif" style={{ fontSize: 26, marginBottom: 4 }}>Credits &middot; {season.label}</div>
+        <div style={{ fontSize: 11, color: 'var(--muted)' }}>Valued at what CBU paid the organiser. Tracked beside balances, never deducted from them.</div>
+      </div>
+
+      <div className="stats-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', border: '1px solid var(--line)', background: 'var(--paper)', marginBottom: 26 }}>
+        <Stat label="Credits Issued" value={fmt(issuedTotal)} color="var(--green)" />
+        <Stat label="Awaiting Credit" value={fmt(pendingTotal)} color={pendingTotal > 0.005 ? 'var(--red-deep)' : 'var(--muted)'} />
+        <Stat label="Credits On Record" value={credits.length} last />
+      </div>
+
+      <div style={{ fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 12 }}>Flagged, Not Yet Issued</div>
+      {pending.length === 0
+        ? <div style={{ padding: 16, textAlign: 'center', color: 'var(--muted)', fontStyle: 'italic', border: '1px dashed var(--line)', marginBottom: 28 }}>Every flagged event has a credit issued.</div>
+        : <div style={{ border: '1px solid var(--line)', background: 'var(--paper)', marginBottom: 28 }}>
+            {pending.map((c, i) => (
+              <div key={i} style={{ padding: '13px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', borderTop: i > 0 ? '1px solid var(--line)' : 'none' }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>{c.affiliate} <span style={{ color: 'var(--muted)', fontWeight: 400 }}>&middot; {c.team}</span></div>
+                  <div style={{ fontSize: 12, marginTop: 2 }}>{c.eventName}</div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <span className="num" style={{ fontSize: 16, fontWeight: 600, color: 'var(--red-deep)' }}>{fmt(c.amount)}</span>
+                  <button disabled={busy} onClick={() => issuePending(c)} style={{ background: 'var(--navy)', color: 'white', border: 'none', padding: '8px 13px', fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600, whiteSpace: 'nowrap' }}>Issue</button>
+                </div>
+              </div>
+            ))}
+          </div>
+      }
+
+      <div style={{ fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 12 }}>Issue A Credit</div>
+      <div className="pay-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1.6fr 1fr auto', gap: 8, alignItems: 'end', marginBottom: 8 }}>
+        <div>
+          <label style={label}>Affiliate</label>
+          <select value={affName} onChange={e => { setAffName(e.target.value); setEvKey(''); setAmount('') }} style={field}>
+            <option value="">Select&hellip;</option>
+            {affiliates.map(a => <option key={a.name} value={a.name}>{a.name}</option>)}
+          </select>
+        </div>
+        <div>
+          <label style={label}>Event (optional)</label>
+          <select value={evKey} onChange={e => pickEvent(e.target.value)} disabled={!formAff} style={{ ...field, opacity: formAff ? 1 : 0.5 }}>
+            <option value="">No specific event</option>
+            {formAff && formAff.events.map((e, i) => {
+              const k = e.team + ' — ' + e.eventName
+              return <option key={i} value={k}>{k}</option>
+            })}
+          </select>
+        </div>
+        <div>
+          <label style={label}>Amount</label>
+          <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--line)', background: 'white', padding: '0 10px' }}>
+            <span className="num" style={{ color: 'var(--muted)', marginRight: 5, fontSize: 14 }}>$</span>
+            <input type="number" step="0.01" min="0" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" className="num"
+              style={{ border: 'none', outline: 'none', padding: '11px 0', fontSize: 15, width: '100%', background: 'transparent' }} />
+          </div>
+        </div>
+        <button disabled={busy || !affName || !parseFloat(amount) || parseFloat(amount) <= 0} onClick={issueManual}
+          style={{ background: 'var(--red-deep)', color: 'white', border: 'none', padding: '11px 15px', fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600, opacity: (busy || !affName || !parseFloat(amount) || parseFloat(amount) <= 0) ? 0.4 : 1, whiteSpace: 'nowrap' }}>Issue Credit</button>
+      </div>
+      <input type="text" value={note} onChange={e => setNote(e.target.value)} placeholder="Note &mdash; why this credit is owed, e.g. event cancelled&hellip;" style={{ ...field, marginBottom: 30 }} />
+
+      <div style={{ fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 12 }}>Issued Credits</div>
+      {credits.length === 0
+        ? <div style={{ padding: 16, textAlign: 'center', color: 'var(--muted)', fontStyle: 'italic', border: '1px dashed var(--line)' }}>No credits issued this season.</div>
+        : <div style={{ border: '1px solid var(--line)', background: 'var(--paper)' }}>
+            {credits.slice().reverse().map((c, i) => (
+              <div key={c.id} style={{ padding: '13px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', borderTop: i > 0 ? '1px solid var(--line)' : 'none' }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>{c.affiliate}{c.team && <span style={{ color: 'var(--muted)', fontWeight: 400 }}> &middot; {c.team}</span>}</div>
+                  <div style={{ fontSize: 12, marginTop: 2 }}>{c.event_name || <span style={{ color: 'var(--muted)', fontStyle: 'italic' }}>No event</span>}</div>
+                  <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 3 }}>{fmtTs(c.created_at)}{c.note ? ' · ' + c.note : ''}</div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <span className="num" style={{ fontSize: 16, fontWeight: 600, color: 'var(--green)' }}>{fmt(c.amount)}</span>
+                  <button disabled={busy} onClick={() => remove(c)} style={{ background: 'white', border: '1px solid var(--line)', color: 'var(--red)', padding: '7px 11px', fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700 }}>Remove</button>
+                </div>
+              </div>
+            ))}
+          </div>
+      }
+    </div>
+  )
+}
+
 // ─── ADMIN Portal ─────────────────────────────────────────────────────────────
-function AdminPortal({ affiliates, payments, onRefresh, season }) {
+function AdminPortal({ affiliates, payments, credits, onRefresh, season }) {
   const [unlocked, setUnlocked] = useState(false)
   const [tab, setTab] = useState('payments')
   const [selected, setSelected] = useState(null)
@@ -889,7 +1049,7 @@ function AdminPortal({ affiliates, payments, onRefresh, season }) {
         <button onClick={() => { setUnlocked(false); setSelected(null) }} style={{ background: 'transparent', border: '1px solid var(--line)', padding: '7px 12px', fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--navy)', flexShrink: 0 }}>Lock</button>
       </div>
       <div style={{ display: 'flex', borderBottom: '1px solid var(--line)', margin: '20px 0 24px' }}>
-        {[{ id: 'payments', label: 'Payments' }, { id: 'profit', label: 'Profit' }].map(t => (
+        {[{ id: 'payments', label: 'Payments' }, { id: 'credits', label: 'Credits' }, { id: 'profit', label: 'Profit' }].map(t => (
           <button key={t.id} onClick={() => { setTab(t.id); setSelected(null) }} style={{
             padding: '11px 22px', fontSize: 12, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase',
             border: 'none', background: 'transparent',
@@ -932,6 +1092,7 @@ function AdminPortal({ affiliates, payments, onRefresh, season }) {
       {invoiceFor && invoiceFor.length > 0 && (
         <InvoiceOverlay affiliates={invoiceFor} paidMap={paidMap} season={season} onClose={() => setInvoiceFor(null)} />
       )}
+      {tab === 'credits' && <CreditsTab affiliates={affiliates} credits={credits} season={season} onRefresh={onRefresh} />}
       {tab === 'profit' && <ProfitTab season={season} />}
       <div style={{ marginTop: 50, textAlign: 'center', fontSize: 10, color: 'var(--muted)', letterSpacing: '0.14em', textTransform: 'uppercase' }}>CBU Tampa Baseball · {season.invoiceNote}</div>
     </div>
@@ -945,24 +1106,27 @@ export default function App() {
   const [payments, setPayments] = useState([])
   const [customAffs, setCustomAffs] = useState([])
   const [lineItems, setLineItems] = useState([])
+  const [credits, setCredits] = useState([])
   const season = SEASONS.find(s => s.id === seasonId) || SEASONS[0]
   const loadAll = async () => {
-    const [p, a, li] = await Promise.all([
+    const [p, a, li, cr] = await Promise.all([
       supabase.from('payments').select('*').eq('season', seasonId).order('created_at', { ascending: true }),
       supabase.from('affiliates').select('*').order('created_at', { ascending: true }),
       supabase.from('line_items').select('*').eq('season', seasonId).order('created_at', { ascending: true }),
+      supabase.from('credits').select('*').eq('season', seasonId).order('created_at', { ascending: true }),
     ])
     if (p.data) setPayments(p.data)
     if (a.data) setCustomAffs(a.data)
     if (li.data) setLineItems(li.data)
+    if (cr.data) setCredits(cr.data)
   }
-  useEffect(() => { setPayments([]); setLineItems([]); loadAll() }, [seasonId])
+  useEffect(() => { setPayments([]); setLineItems([]); setCredits([]); loadAll() }, [seasonId])
   const affiliates = useMemo(() => buildAffiliates(season.affiliates, customAffs, lineItems), [season, customAffs, lineItems])
   return (
     <div style={{ minHeight: '100vh' }}>
       <TopNav page={page} onNavigate={setPage} season={season} onSeason={setSeasonId} />
       {page === 'public' && <PublicView affiliates={affiliates} payments={payments} season={season} />}
-      {page === 'admin'  && <AdminPortal affiliates={affiliates} payments={payments} onRefresh={loadAll} season={season} />}
+      {page === 'admin'  && <AdminPortal affiliates={affiliates} payments={payments} credits={credits} onRefresh={loadAll} season={season} />}
     </div>
   )
 }
